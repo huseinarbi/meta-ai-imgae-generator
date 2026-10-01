@@ -1,0 +1,14 @@
+{
+  "name": "meta-ai-generator",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node generator.mjs",
+    "check": "node generator.mjs --check"
+  },
+  "dependencies": {
+    "playwright": "^1.55.0",
+    "sharp": "^0.34.5"
+  }
+}

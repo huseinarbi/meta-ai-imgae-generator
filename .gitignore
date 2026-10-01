@@ -1,0 +1,11 @@
+node_modules/
+
+browser-profile
+generated
+upscaled
+
+generator.log
+
+# misc
+.DS_Store
+*.pem
