@@ -18,24 +18,8 @@
   },
   "batches": [
     {
-      "name": "batch-1",
-      "prompt": "Generate 4 variations of the SAME concept: a cinematic close-up of a person's hands holding a sleek bio-composite smart key fob above a warm teak wooden table, soft morning sunbeams casting long delicate shadows, biophilic design trend, photorealistic, premium commercial lifestyle photography. Keep the same hands, key fob, and table in all 4 images; only vary framing and camera angle. No face, no text, no logos."
-    },
-    {
-      "name": "batch-2",
-      "prompt": "Generate 4 variations of the SAME concept: a high-end natural skincare detail featuring an unbranded frosted glass dropper bottle resting on a moist travertine slab next to a single white jasmine blossom, soft caustic reflections from nearby water, luxury beauty editorial photography, photorealistic, clean quiet luxury palette. Keep the exact same bottle, flower, and stone slab in all 4 images; only vary camera position and perspective. No text, no logos."
-    },
-    {
-      "name": "batch-3",
-      "prompt": "Generate 4 variations of the SAME concept: a stylish young person wearing an oversized cream-colored organic cotton shirt sitting at a minimalist outdoor cafe table, hands holding a clear glass of iced cold brew with condensation, warm afternoon sunlight, relaxed natural pose, contemporary editorial lifestyle photography, realistic skin and fabric texture, photorealistic. Keep the same person, outfit, and drink in all 4 images; only vary camera angle and crop. No face, no text, no logos."
-    },
-    {
-      "name": "batch-4",
-      "prompt": "Generate 4 variations of the SAME concept: a quiet sustainable home office setup with a sleek e-ink digital notebook and a ceramic coffee mug on a natural oak desk, dappled leaf shadows from a nearby window, warm cream and sage green palette, cinematic lifestyle photography, subtle texture, elegant and modern. Keep the same notebook, mug, and desk in all 4 images; only vary camera perspective and framing. No people, no text, no logos."
-    },
-    {
-      "name": "batch-5",
-      "prompt": "Generate 4 variations of the SAME concept: a premium minimalist summer travel flat lay featuring a pair of dark tortoise-shell sunglasses, a folded woven straw hat, a refillable matte aluminum perfume atomizer, and a linen pouch arranged on a warm sand backdrop, soft directional sunlight, long subtle shadows, luxury editorial travel photography, clean composition, photorealistic textures. Keep the exact same items in all 4 images; only vary arrangement and camera angle slightly. No brand names, no text, no logos."
+      "name": "batch-16",
+      "prompt": "Generate 4 variations of the SAME concept: a cinematic close-up of a person's hands holding a warm ceramic mug of spiced hot chocolate with cream beside a frosted windowpane, soft overcast winter light, cozy oversized ribbed knit sweater sleeves, subtle condensation on glass, realistic skin and fabric texture, premium seasonal lifestyle photography, calm intimate atmosphere, photorealistic. Keep the same hands, mug, window, and sweater in all 4 images; only vary framing and camera angle. No face, no text, no logos."
     }
   ]
 }

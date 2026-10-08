@@ -153,11 +153,13 @@ async function detectBrowserExecutable() {
 }
 
 async function convertToJpeg(inputPath, outputPath, quality = 92) {
+  let sharpError;
   try {
     const sharpModule = await import("sharp");
     await sharpModule.default(inputPath).jpeg({ quality }).toFile(outputPath);
     return;
-  } catch {
+  } catch (error) {
+    sharpError = error;
   }
 
   for (const command of ["magick", "convert"]) {
@@ -172,7 +174,12 @@ async function convertToJpeg(inputPath, outputPath, quality = 92) {
     if (result.status === 0 && fsSync.existsSync(outputPath) && fsSync.statSync(outputPath).size > 0) return;
   }
 
-  throw new Error("Gagal konversi ke JPEG. Jalankan: npm install sharp");
+  throw new Error(`Gagal konversi ke JPEG (${sharpError?.message || "sharp tidak tersedia"}). Jalankan: npm install sharp`);
+}
+
+async function convertBytesToJpeg(bytes, outputPath, quality = 92) {
+  const sharpModule = await import("sharp");
+  await sharpModule.default(bytes).jpeg({ quality }).toFile(outputPath);
 }
 
 async function launchMetaAi(config) {
@@ -379,29 +386,55 @@ async function runBatch(config, batchIndex, batch, browser) {
       throw new Error(`Hanya ada ${latestUrls.length} gambar siap, butuh ${expectedCount}.`);
     }
 
+    let failedCount = 0;
     for (let index = 0; index < expectedCount; index += 1) {
-      const response = await context.request.get(latestUrls[index], { timeout: 60000 });
-      if (!response.ok()) {
-        throw new Error(`Download gambar gagal: HTTP ${response.status()} (${latestUrls[index]})`);
-      }
-      const bytes = Buffer.from(await response.body());
-      const imageType = sniffImage(bytes);
-      if (!imageType) {
-        throw new Error(`Format gambar tidak dikenali (URL: ${latestUrls[index]}).`);
-      }
       const finalOutputName = `${name}-${index + 1}-${stamp}.jpg`;
       const finalOutputPath = path.join(outputDir, finalOutputName);
-      if (imageType === "jpeg") {
-      await fs.writeFile(finalOutputPath, bytes);
-      } else {
-        const temporaryPath = `${finalOutputPath}.${imageType}.tmp`;
-        await fs.writeFile(temporaryPath, bytes);
-        await convertToJpeg(temporaryPath, finalOutputPath);
-        await fs.unlink(temporaryPath);
+      const downloadAttempts = 3;
+      let downloadError = null;
+      let converted = false;
+
+      for (let attempt = 1; attempt <= downloadAttempts; attempt += 1) {
+        try {
+          const response = await context.request.get(latestUrls[index], { timeout: 60000 });
+          if (!response.ok()) {
+            throw new Error(`HTTP ${response.status()}`);
+          }
+          const bytes = Buffer.from(await response.body());
+          const imageType = sniffImage(bytes);
+          if (!imageType) {
+            throw new Error(`format ${bytes.subarray(0, 12).toString("hex")} tidak dikenali`);
+          }
+          if (imageType === "jpeg") {
+            await fs.writeFile(finalOutputPath, bytes);
+          } else {
+            await convertBytesToJpeg(bytes, finalOutputPath);
+          }
+          converted = true;
+          await writeLog(`OK ${finalOutputName} from ${imageType}${attempt > 1 ? ` attempt ${attempt}` : ""}`);
+          break;
+        } catch (error) {
+          downloadError = error;
+          await writeLog(`WARN ${finalOutputName} download/konversi gagal attempt ${attempt}/${downloadAttempts}: ${error.message}`);
+          if (attempt < downloadAttempts) {
+            await new Promise((resolve) => setTimeout(resolve, 1000 * attempt));
+          }
+        }
       }
+
+      if (!converted) {
+        failedCount += 1;
+        await say(`${name} gambar ${index + 1} gagal — ${downloadError?.message || "unknown error"}`, "error");
+        await fs.rm(finalOutputPath, { force: true }).catch(() => {});
+        continue;
+      }
+
       producedFiles.push(finalOutputPath);
       await status(`Generate ${name} — ${progressBar(index + 1, expectedCount)} — saving JPEG`);
-      await writeLog(`OK ${finalOutputName} from ${imageType}`);
+    }
+
+    if (failedCount) {
+      throw new Error(`${failedCount} dari ${expectedCount} gambar gagal download/konversi.`);
     }
 
     const duration = Math.round((Date.now() - startedAt) / 1000);
