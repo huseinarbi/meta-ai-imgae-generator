@@ -215,6 +215,31 @@ async function launchMetaAi(config) {
   return { context, page };
 }
 
+function isBrowserClosedError(error) {
+  return /has been closed|Target closed|Target crashed|Target page, context or browser/i.test(error?.message || "");
+}
+
+async function waitForComposer(page, timeoutMs = 20000) {
+  await page.waitForFunction(() => {
+    const visible = (element) => {
+      const rect = element.getBoundingClientRect();
+      return rect.width > 0 && rect.height > 0;
+    };
+    return [...document.querySelectorAll('textarea,[contenteditable="true"]')].some(visible);
+  }, undefined, { timeout: timeoutMs, polling: 500 });
+}
+
+async function ensureFreshChat(page) {
+  // Chat baru per batch: DOM ringan (hindari crash pada percakapan panjang)
+  // dan baseline gambar selalu kosong.
+  const url = page.url();
+  if (!/^https:\/\/meta\.ai\/?$/.test(url)) {
+    await page.goto("https://meta.ai/", { waitUntil: "domcontentloaded", timeout: 60000 });
+  }
+  await waitForComposer(page);
+  await page.waitForTimeout(800);
+}
+
 async function fillPrompt(page, prompt) {
   await page.waitForFunction(() => {
     const visible = (element) => {
@@ -294,9 +319,11 @@ async function submitPrompt(page) {
   await page.waitForTimeout(3000);
 
   const stopVisible = () => page.evaluate(() =>
-    [...document.querySelectorAll("button")].some((button) =>
-      /stop/i.test(button.getAttribute("aria-label") || "")
-    )
+    [...document.querySelectorAll("button")].some((button) => {
+      if (!/stop|henti/i.test(button.getAttribute("aria-label") || "")) return false;
+      const rect = button.getBoundingClientRect();
+      return rect.width > 0 && rect.height > 0;
+    })
   );
 
   let started = await stopVisible();
@@ -307,9 +334,14 @@ async function submitPrompt(page) {
 
   if (!started) {
     await page.evaluate(() => {
-      const candidate = [...document.querySelectorAll("button")].find((button) =>
-        /submit|send|kirim/i.test(button.getAttribute("aria-label") || "") || button.type === "submit"
-      );
+      const visible = (element) => {
+        const rect = element.getBoundingClientRect();
+        return rect.width > 0 && rect.height > 0;
+      };
+      const candidate = [...document.querySelectorAll("button")].filter(visible).find((button) => {
+        const label = button.getAttribute("aria-label") || "";
+        return /submit|send|kirim/i.test(label) && button.getAttribute("aria-disabled") !== "true" && !button.disabled;
+      });
       candidate?.click();
     });
     await page.waitForTimeout(4000);
@@ -331,25 +363,97 @@ async function submitPrompt(page) {
   }
 }
 
-async function waitForGeneratedImages(page, baseline, expectedCount, timeoutSeconds) {
-  try {
-    await page.waitForFunction(({ base, need }) => {
-      const images = [...document.querySelectorAll('img[src*="scontent"]')];
-      const ready = images.filter((image) => image.complete && image.naturalWidth >= 200);
-      const generating = [...document.querySelectorAll("button")].some((button) =>
-        /stop/i.test(button.getAttribute("aria-label") || "")
-      );
-      return !generating && ready.length >= base + need;
-    }, { base: baseline, need: expectedCount }, { timeout: timeoutSeconds * 1000, polling: 1500 });
-  } catch {
-    throw new Error(`Timeout menunggu ${expectedCount} gambar selesai (${timeoutSeconds} detik).`);
+async function waitForGeneratedImages(page, baselineUrls, expectedCount, timeoutSeconds, batchName) {
+  // Polling manual (bukan waitForFunction) supaya:
+  // - gambar lazy di bawah viewport bisa dipicu load via scrollIntoView
+  // - navigasi meta.ai (redirect ke /prompt/<uuid>) tidak membatalkan penungguan
+  // - error browser closed/crash diteruskan apa adanya, tidak dibungkus jadi "timeout"
+  const deadline = Date.now() + timeoutSeconds * 1000;
+  let lastLog = 0;
+  let stableSince = 0;
+  let lastStableKey = "";
+
+  while (Date.now() < deadline) {
+    let state;
+    try {
+      state = await page.evaluate((baseUrls) => {
+        const images = [...document.querySelectorAll('img[src*="scontent"]')];
+        const fresh = images.filter((image) => !baseUrls.includes(image.currentSrc || image.src));
+        for (const image of fresh) {
+          // Meta AI memakai loading="lazy" pada sebagian gambar hasil;
+          // tanpa masuk viewport gambar tidak pernah di-load.
+          if (!image.complete || image.naturalWidth < 200) image.scrollIntoView({ block: "center" });
+        }
+        const ready = fresh.filter((image) => image.complete && image.naturalWidth >= 200);
+        const generating = [...document.querySelectorAll("button")].some((button) => {
+          if (!/stop|henti/i.test(button.getAttribute("aria-label") || "")) return false;
+          const rect = button.getBoundingClientRect();
+          return rect.width > 0 && rect.height > 0;
+        });
+        return {
+          readyUrls: ready.map((image) => image.currentSrc || image.src),
+          freshCount: fresh.length,
+          generating,
+        };
+      }, baselineUrls);
+    } catch (error) {
+      if (isBrowserClosedError(error)) throw error;
+      // Navigasi / context destroyed: tunggu halaman stabil lalu lanjut poll.
+      await page.waitForLoadState("domcontentloaded", { timeout: 15000 }).catch(() => {});
+      await page.waitForTimeout(1500);
+      continue;
+    }
+
+    const readyCount = state.readyUrls.length;
+    if (Date.now() - lastLog > 10000) {
+      await status(`Generate ${batchName} — ${progressBar(Math.min(readyCount, expectedCount), expectedCount)} — waiting images (${readyCount} siap, generating=${state.generating})`);
+      lastLog = Date.now();
+    }
+
+    if (!state.generating && readyCount >= expectedCount) {
+      return { urls: state.readyUrls.slice(-expectedCount), complete: true };
+    }
+
+    // Settle detection: generasi selesai, semua gambar baru sudah load,
+    // tapi jumlahnya kurang dari expected (Meta kadang menghasilkan lebih sedikit).
+    const stableKey = `${state.generating}|${state.freshCount}|${readyCount}`;
+    if (!state.generating && state.freshCount > 0 && readyCount === state.freshCount) {
+      if (stableKey !== lastStableKey) {
+        lastStableKey = stableKey;
+        stableSince = Date.now();
+      } else if (Date.now() - stableSince >= 15000) {
+        return { urls: state.readyUrls, complete: readyCount >= expectedCount };
+      }
+    } else {
+      stableSince = 0;
+      lastStableKey = "";
+    }
+
+    await page.waitForTimeout(2000);
   }
 
-  return page.evaluate(() =>
-    [...document.querySelectorAll('img[src*="scontent"]')]
-      .filter((image) => image.complete && image.naturalWidth >= 200)
-      .map((image) => image.currentSrc || image.src)
-  );
+  // Timeout: coba ambil kondisi terakhir untuk diagnostik + salvage.
+  let finalState = { readyUrls: [], freshCount: 0, generating: null };
+  try {
+    finalState = await page.evaluate((baseUrls) => {
+      const images = [...document.querySelectorAll('img[src*="scontent"]')];
+      const fresh = images.filter((image) => !baseUrls.includes(image.currentSrc || image.src));
+      const ready = fresh.filter((image) => image.complete && image.naturalWidth >= 200);
+      const generating = [...document.querySelectorAll("button")].some((button) => {
+        if (!/stop|henti/i.test(button.getAttribute("aria-label") || "")) return false;
+        const rect = button.getBoundingClientRect();
+        return rect.width > 0 && rect.height > 0;
+      });
+      return { readyUrls: ready.map((image) => image.currentSrc || image.src), freshCount: fresh.length, generating };
+    }, baselineUrls);
+  } catch { /* halaman sudah tidak bisa dievaluasi; biarkan state kosong */ }
+
+  return {
+    urls: finalState.readyUrls,
+    complete: false,
+    timedOut: true,
+    detail: `${finalState.readyUrls.length}/${expectedCount} siap, fresh=${finalState.freshCount}, generating=${finalState.generating}`,
+  };
 }
 
 async function runBatch(config, batchIndex, batch, browser) {
@@ -367,27 +471,45 @@ async function runBatch(config, batchIndex, batch, browser) {
 
   try {
     const { context, page } = browser;
-    const baseline = await page.evaluate(() =>
-      [...document.querySelectorAll('img[src*="scontent"]')].length
+    await ensureFreshChat(page);
+
+    const collectBaseline = () => page.evaluate(() =>
+      [...document.querySelectorAll('img[src*="scontent"]')].map((image) => image.currentSrc || image.src)
     );
+    let baselineUrls;
+    try {
+      baselineUrls = await collectBaseline();
+    } catch (error) {
+      if (isBrowserClosedError(error)) throw error;
+      // Balapan dengan navigasi awal meta.ai: tunggu halaman stabil lalu ulangi.
+      await page.waitForLoadState("domcontentloaded", { timeout: 15000 }).catch(() => {});
+      await waitForComposer(page);
+      baselineUrls = await collectBaseline();
+    }
 
     await fillPrompt(page, prompt);
     await submitPrompt(page);
     await status(`Generate ${name} — ${progressBar(0, expectedCount)} — waiting images`);
-    const imageUrls = await waitForGeneratedImages(
+    const waitResult = await waitForGeneratedImages(
       page,
-      baseline,
+      baselineUrls,
       expectedCount,
       Number(config.timeoutSeconds || config.timeout_seconds || 300),
+      name,
     );
 
-    const latestUrls = imageUrls.slice(-expectedCount);
+    const latestUrls = waitResult.urls;
+    if (!latestUrls.length) {
+      throw new Error(waitResult.timedOut
+        ? `Timeout menunggu gambar — ${waitResult.detail}`
+        : "Tidak ada gambar baru yang terdeteksi di halaman.");
+    }
     if (latestUrls.length < expectedCount) {
-      throw new Error(`Hanya ada ${latestUrls.length} gambar siap, butuh ${expectedCount}.`);
+      await say(`${name} — Meta hanya menghasilkan ${latestUrls.length}/${expectedCount} gambar, diproses sebagian.`, "warning");
     }
 
     let failedCount = 0;
-    for (let index = 0; index < expectedCount; index += 1) {
+    for (let index = 0; index < latestUrls.length; index += 1) {
       const finalOutputName = `${name}-${index + 1}-${stamp}.jpg`;
       const finalOutputPath = path.join(outputDir, finalOutputName);
       const downloadAttempts = 3;
@@ -434,14 +556,22 @@ async function runBatch(config, batchIndex, batch, browser) {
     }
 
     if (failedCount) {
-      throw new Error(`${failedCount} dari ${expectedCount} gambar gagal download/konversi.`);
+      if (producedFiles.length) {
+        await say(`${name} — ${failedCount} gambar gagal download, ${producedFiles.length} tetap tersimpan.`, "warning");
+      } else {
+        throw new Error(`${failedCount} dari ${latestUrls.length} gambar gagal download/konversi.`);
+      }
     }
 
     const duration = Math.round((Date.now() - startedAt) / 1000);
     await say(`${name} — ${producedFiles.length} gambar JPG — ${duration}s`, "success");
     await writeLog(`BATCH ${name} SELESAI: ${producedFiles.length} gambar`);
-    return { ok: true, files: producedFiles };
+    return { ok: producedFiles.length > 0, files: producedFiles };
   } catch (error) {
+    if (isBrowserClosedError(error)) {
+      error.browserClosed = true;
+      throw error; // main() akan relaunch browser dan mengulang batch ini
+    }
     await say(`${name} gagal — ${error.message}`, "error");
     await writeLog(`BATCH ${name} GAGAL: ${error.message}`);
     return { ok: false, files: producedFiles };
@@ -670,12 +800,30 @@ async function main() {
   const results = {};
   const generateStartedAt = Date.now();
   await say(`Generate ${choices.length} batch`, "info");
-  const browser = await launchMetaAi(config);
+  let browser = await launchMetaAi(config);
   try {
     for (const batchIndex of choices) {
-      const result = await runBatch(config, batchIndex, batches[batchIndex - 1], browser);
-      results[batchIndex] = result.ok;
-      generatedFiles.push(...result.files);
+      let batchAttempt = 0;
+      for (;;) {
+        batchAttempt += 1;
+        let result;
+        try {
+          result = await runBatch(config, batchIndex, batches[batchIndex - 1], browser);
+        } catch (error) {
+          if (error.browserClosed && batchAttempt <= 2) {
+            await say(`Browser tertutup/crash saat batch ${batchIndex} — buka ulang dan ulang batch (percobaan ${batchAttempt}).`, "warning");
+            await browser.context.close().catch(() => {});
+            browser = await launchMetaAi(config);
+            continue;
+          }
+          result = { ok: false, files: [] };
+          await say(`Batch ${batchIndex} gagal — ${error.message}`, "error");
+          await writeLog(`BATCH ${batchIndex} GAGAL: ${error.message}`);
+        }
+        results[batchIndex] = result.ok;
+        generatedFiles.push(...result.files);
+        break;
+      }
     }
   } finally {
     await browser.context.close().catch(() => {});

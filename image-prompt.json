@@ -18,8 +18,44 @@
   },
   "batches": [
     {
-      "name": "batch-16",
-      "prompt": "Generate 4 variations of the SAME concept: a cinematic close-up of a person's hands holding a warm ceramic mug of spiced hot chocolate with cream beside a frosted windowpane, soft overcast winter light, cozy oversized ribbed knit sweater sleeves, subtle condensation on glass, realistic skin and fabric texture, premium seasonal lifestyle photography, calm intimate atmosphere, photorealistic. Keep the same hands, mug, window, and sweater in all 4 images; only vary framing and camera angle. No face, no text, no logos."
+      "name": "batch-116",
+      "prompt": "Generate 4 variations of the SAME concept: a cinematic close-up of a person's hands holding a modern biophilic smart home control hub encased in textured matte beige ceramic, glowing soft warm LED status light, placed on an oiled walnut wooden surface, morning sunbeams, smart living trend, photorealistic, premium commercial product photography. Keep the same hands, device, and table in all 4 images; only vary framing and camera angle. No face, no text, no logos."
+    },
+    {
+      "name": "batch-117",
+      "prompt": "Generate 4 variations of the SAME concept: a high-end luxury skincare detail featuring an unbranded clear glass serum dropper bottle resting on a wet piece of smooth dark slate stone, subtle water ripples beneath, bright clean sunlight casting sharp crystal reflections, fresh neutral earth-tone palette, luxury beauty editorial photography, photorealistic. Keep the exact same bottle and stone in all 4 images; only vary camera angle and lighting focus. No brand text, no logos."
+    },
+    {
+      "name": "batch-118",
+      "prompt": "Generate 4 variations of the SAME concept: an authentic mindfulness and meditation shot showing a person sitting cross-legged on a natural woven jute mat in a sunlit minimalist room, hands resting peacefully in a mudra gesture, soft shadow play on a plain limewash wall, calm and serene atmosphere, wellness editorial photography, photorealistic, neutral tones. Keep the same person, outfit, and room in all 4 images; only vary framing and camera angle. No face, no text, no logos."
+    },
+    {
+      "name": "batch-119",
+      "prompt": "Generate 4 variations of the SAME concept: a modern architectural detail shot of a sustainable luxury interior featuring exposed warm timber slats, raw concrete panels, indoor hanging green plants, clean geometric shadows from afternoon sun, high-end architectural editorial photography, photorealistic, clean and aspirational. Keep the exact same architecture in all 4 images; only vary camera perspective and elevation. No people, no text, no logos."
+    },
+    {
+      "name": "batch-120",
+      "prompt": "Generate 4 variations of the SAME concept: a minimalist financial and tech concept featuring a sleek, blank matte-ceramic payment card resting on a piece of smooth dark granite stone, dramatic hard shadow and soft rim lighting, quiet luxury fintech aesthetic, extremely realistic ceramic and stone textures, photorealistic. Keep the exact same card and stone in all 4 images; only vary camera angle and lighting direction. No text, no chip brand, no logos."
+    },
+    {
+      "name": "batch-121",
+      "prompt": "Generate 4 variations of the SAME concept: a premium culinary detail of an artisan pouring golden organic cold-pressed oil from a handmade dark ceramic cruet onto a fresh slice of artisan sourdough bread resting on a rough slate board, crisp side light highlighting oil droplets, dark moody gastronomy photography, photorealistic textures. Keep the same bottle, bread, and slate in all 4 images; only vary camera angle and pouring dynamic slightly. No text, no logos."
+    },
+    {
+      "name": "batch-122",
+      "prompt": "Generate 4 variations of the SAME concept: a cozy autumn/winter transition flat lay featuring a neatly folded heavy cream cashmere scarf, a leather-bound sketchbook, a brass fountain pen, and a single dried cotton boll on a light-colored linen backdrop, warm directional afternoon sunlight, soft long shadows, editorial lifestyle photography, photorealistic textures. Keep the exact same items in all 4 images; only vary camera perspective and arrangement. No text, no logos."
+    },
+    {
+      "name": "batch-123",
+      "prompt": "Generate 4 variations of the SAME concept: a surreal yet realistic visual concept for eco-friendly packaging showing a fresh green sprout growing seamlessly out of a folded cream-colored biodegradable cardboard box, soft studio lighting against an off-white background, clean commercial aesthetic, photorealistic. Keep the same box and plant in all 4 images; only vary camera angle and crop. No text, no logos."
+    },
+    {
+      "name": "batch-124",
+      "prompt": "Generate 4 variations of the SAME concept: a modern remote work setting showing a person's hands typing on a slim space-gray keyboard beside a warm ceramic cup of matcha latte and a small green succulent on a light oak desk, soft diffused window lighting, blurred minimal living room background, clean editorial lifestyle photography, realistic skin and wood textures, photorealistic. Keep the same setup and lighting in all 4 images; only vary camera angle and crop. No face, no keyboard brand, no logos."
+    },
+    {
+      "name": "batch-125",
+      "prompt": "Generate 4 variations of the SAME concept: a high-end natural spa and wellness detail featuring a single handcrafted ceramic jar of sea salt body scrub and a natural wood scoop resting on a warm stone ledge, soft caustic light reflections, calm wellness editorial photography, photorealistic, quiet luxury aesthetic. Keep the exact same jar and scoop in all 4 images; only vary camera position and perspective. No people, no text, no logos."
     }
   ]
 }
